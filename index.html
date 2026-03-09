@@ -1,70 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pump Master AI</title>
+    <title>Pompe pour voir ;)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #121212; color: white; }
-        canvas { position: absolute; left: 0; top: 0; z-index: 1; }
-        video { width: 100%; max-width: 500px; border-radius: 10px; }
-        #counter { font-size: 5rem; font-weight: bold; color: #00ff00; }
-        .container { position: relative; display: inline-block; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            text-align: center; 
+            background: #000000; /* Ton fond noir */
+            color: #ecc19c; /* Ta couleur chair/sable */
+            margin: 0;
+            overflow: hidden;
+        }
+        #counter { 
+            font-size: 8rem; 
+            font-weight: bold; 
+            color: #1e847f; /* Ta couleur bleu/vert */
+            text-shadow: 0 0 20px rgba(30, 132, 127, 0.5);
+        }
+        .container { position: relative; width: 100vw; height: 60vh; }
+        video { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            transform: scaleX(-1); /* EFFET MIROIR ICI */
+            border-bottom: 4px solid #1e847f;
+        }
+        canvas { display: none; } /* On cache le squelette pour que ce soit plus beau */
+        .btn {
+            background: #1e847f;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <h1>PUMP OR BLOCK</h1>
+    <h1 style="margin-top:20px;">PUMP TO UNLOCK</h1>
     <div id="counter">0</div>
     <div class="container">
         <video id="video" playsinline></video>
-        <canvas id="output"></canvas>
     </div>
-    <p id="status">Chargement de l'IA...</p>
+    <p id="status" style="color: #1e847f;">Initialisation de l'IA...</p>
 
     <script>
         let count = 0;
-        let position = "up"; // "up" ou "down"
+        let position = "up"; 
         const video = document.getElementById('video');
-        const canvas = document.getElementById('output');
-        const ctx = canvas.getContext('2d');
 
         async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            // On force l'utilisation de la caméra frontale ("user")
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "user" } 
+            });
             video.srcObject = stream;
             return new Promise((resolve) => { video.onloadedmetadata = () => resolve(video); });
         }
 
         async function main() {
             const net = await posenet.load();
-            document.getElementById('status').innerText = "IA prête ! Mets-toi en place.";
+            document.getElementById('status').innerText = "IA ACTIVE - FAIS TES POMPES";
             await setupCamera();
             video.play();
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
             detectPose(net);
         }
 
         async function detectPose(net) {
             const pose = await net.estimateSinglePose(video);
             
-            // Logique de détection simplifiée (basée sur l'épaule droite)
-            const shoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
+            // On détecte le nez pour voir si ton visage descend et remonte
+            const nose = pose.keypoints.find(k => k.part === 'nose');
             
-            if (shoulder && shoulder.score > 0.5) {
-                const y = shoulder.position.y;
+            if (nose && nose.score > 0.6) {
+                const y = nose.position.y;
                 
-                // Si l'épaule descend sous un certain seuil (à ajuster selon ta distance)
-                if (y > 300 && position === "up") {
+                // AJUSTEMENT DES SEUILS :
+                // Plus le chiffre est grand, plus le nez est BAS sur l'écran.
+                if (y > 350 && position === "up") {
                     position = "down";
+                    document.body.style.background = "#1e847f"; // Flash couleur quand tu es en bas
                 } 
-                // Si elle remonte
                 else if (y < 200 && position === "down") {
                     position = "up";
                     count++;
                     document.getElementById('counter').innerText = count;
+                    document.body.style.background = "#000000";
                     checkGoal();
                 }
             }
@@ -72,10 +98,10 @@
         }
 
         function checkGoal() {
-            if (count >= 10) { // Objectif : 10 pompes
-                alert("BRAVO ! Accès débloqué.");
-                // Ici on enregistrera la preuve de réussite
-                localStorage.setItem('pompes_faites', Date.now());
+            if (count >= 5) { // Test avec 5 pompes pour commencer
+                alert("SESSION VALIDÉE !");
+                // On enregistre l'heure de fin pour Raccourcis
+                localStorage.setItem('last_workout', Date.now());
             }
         }
 
