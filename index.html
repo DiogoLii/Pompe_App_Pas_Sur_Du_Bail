@@ -1,64 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PUSH-UP OR SHUT-UP</title>
+    <title>PUSH-UP OR SHUT-UP : ANTI-TRICHE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
     <style>
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            text-align: center; 
-            background: #000000; 
-            color: #ecc19c; 
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        h1 { margin: 10px 0 0 0; font-size: 1.2rem; }
-        #counter { 
-            font-size: 6rem; 
-            font-weight: bold; 
-            color: #1e847f; 
-            text-shadow: 0 0 20px rgba(30, 132, 127, 0.5);
-            margin: 0;
-        }
-        #debug-text { font-size: 0.9rem; margin-bottom: 5px; color: #fff; }
-        .container { 
-            position: relative; 
-            width: 100vw; 
-            flex-grow: 1; /* Prend l'espace restant */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        video, canvas { 
-            position: absolute;
-            width: 100%; 
-            height: 100%; 
-            object-fit: contain; /* ESSENTIEL : Ne coupe plus la vidéo */
-            transform: scaleX(-1); /* Effet miroir */
-        }
-        canvas { 
-            z-index: 2; 
-            pointer-events: none;
-        }
-        #status { color: #1e847f; font-weight: bold; padding: 10px; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #000000; color: #ecc19c; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        #counter { font-size: 6rem; font-weight: bold; color: #1e847f; margin: 0; }
+        #debug-text { font-size: 0.8rem; background: #222; padding: 5px; min-height: 40px; }
+        .container { position: relative; width: 100vw; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
+        video, canvas { position: absolute; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+        canvas { z-index: 2; }
     </style>
 </head>
 <body>
-    <h1>DEBUG MODE : LIGNES ACTIVES</h1>
+    <h1>MODE SQUELETTE COMPLET</h1>
     <div id="counter">0</div>
-    <div id="debug-text">Nez Y : -- | Attente...</div>
+    <div id="debug-text">Initialisation...</div>
     
     <div class="container">
         <video id="video" playsinline></video>
         <canvas id="output"></canvas>
     </div>
-    
-    <p id="status">Initialisation de l'IA...</p>
 
     <script>
         let count = 0;
@@ -67,98 +31,66 @@
         const canvas = document.getElementById('output');
         const ctx = canvas.getContext('2d');
 
-        async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "user" } 
-            });
-            video.srcObject = stream;
-            return new Promise((resolve) => { 
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    resolve(video); 
-                }; 
-            });
-        }
-
         async function main() {
             const net = await posenet.load();
-            document.getElementById('status').innerText = "SCANNER PRÊT";
-            await setupCamera();
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            video.srcObject = stream;
             video.play();
-            detectPose(net);
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                detectPose(net);
+            };
         }
 
         function drawPoint(y, x, r, color) {
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, 2 * Math.PI);
-            ctx.fillStyle = color;
-            ctx.fill();
-        }
-
-        function drawLine(y, color) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(canvas.width, y);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill();
         }
 
         async function detectPose(net) {
             const pose = await net.estimateSinglePose(video);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Dessiner le squelette
-            pose.keypoints.forEach(point => {
-                if (point.score > 0.5) {
-                    drawPoint(point.position.y, point.position.x, 5, "#1e847f");
-                }
+            const shoulderL = pose.keypoints.find(k => k.part === 'leftShoulder');
+            const shoulderR = pose.keypoints.find(k => k.part === 'rightShoulder');
+            const wristL = pose.keypoints.find(k => k.part === 'leftWrist');
+            const wristR = pose.keypoints.find(k => k.part === 'rightWrist');
+
+            // Dessiner les points détectés pour debug
+            [shoulderL, shoulderR, wristL, wristR].forEach(p => {
+                if (p && p.score > 0.5) drawPoint(p.position.y, p.position.x, 8, "#1e847f");
             });
 
-            // Définition des seuils dynamiques (adaptés à la caméra)
-            const seuilBas = canvas.height * 0.70; // La ligne rouge est à 70% en bas de l'écran
-            const seuilHaut = canvas.height * 0.40; // La ligne verte est à 40% en haut de l'écran
+            if (shoulderL && shoulderR && shoulderL.score > 0.5 && shoulderR.score > 0.5) {
+                // On calcule la moyenne de hauteur des épaules
+                const avgShoulderY = (shoulderL.position.y + shoulderR.position.y) / 2;
+                
+                // On définit le "sol" par rapport au bas de l'image (75% de la hauteur)
+                const solVirtuel = canvas.height * 0.75;
+                const positionHaute = canvas.height * 0.45;
 
-            // Affichage visuel des lignes
-            drawLine(seuilBas, "red");   // Il faut descendre sous cette ligne
-            drawLine(seuilHaut, "green"); // Il faut remonter au-dessus de cette ligne
+                // Dessiner les lignes de seuil
+                ctx.beginPath(); ctx.moveTo(0, solVirtuel); ctx.lineTo(canvas.width, solVirtuel); ctx.strokeStyle = "red"; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, positionHaute); ctx.lineTo(canvas.width, positionHaute); ctx.strokeStyle = "green"; ctx.stroke();
 
-            const nose = pose.keypoints.find(k => k.part === 'nose');
-            
-            if (nose && nose.score > 0.6) {
-                const y = nose.position.y;
-                drawPoint(y, nose.position.x, 10, "#ecc19c");
+                document.getElementById('debug-text').innerText = `Hauteur Épaules : ${Math.round(avgShoulderY)} | Objectif Bas : ${Math.round(solVirtuel)}`;
 
-                // Met à jour le texte pour t'aider à comprendre
-                document.getElementById('debug-text').innerText = `Nez Y : ${Math.round(y)} | Ligne Rouge : ${Math.round(seuilBas)} | Ligne Verte : ${Math.round(seuilHaut)}`;
-
-                // LOGIQUE DE COMPTAGE CORRIGÉE
-                // On descend la tête (Y augmente vers le bas de l'écran)
-                if (y > seuilBas && position === "up") {
+                // LOGIQUE : Les épaules doivent descendre vers le sol virtuel
+                if (avgShoulderY > solVirtuel && position === "up") {
                     position = "down";
-                    document.body.style.background = "#1e847f"; 
+                    document.body.style.background = "#1e847f";
                 } 
-                // On remonte la tête (Y diminue vers le haut de l'écran)
-                else if (y < seuilHaut && position === "down") {
+                else if (avgShoulderY < positionHaute && position === "down") {
                     position = "up";
                     count++;
                     document.getElementById('counter').innerText = count;
                     document.body.style.background = "#000000";
-                    checkGoal();
                 }
+            } else {
+                document.getElementById('debug-text').innerText = "Place tes deux épaules face à la caméra !";
             }
-            
             requestAnimationFrame(() => detectPose(net));
         }
-
-        function checkGoal() {
-            if (count >= 5) {
-                alert("SESSION VALIDÉE !");
-                localStorage.setItem('last_workout', Date.now());
-            }
-        }
-
         main();
     </script>
 </body>
