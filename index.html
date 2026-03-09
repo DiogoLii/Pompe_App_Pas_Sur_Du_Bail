@@ -2,78 +2,24 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>PUMP OR BLOCK - PRO</title>
+    <title>PUMP OR BLOCK - SYMMETRY MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#000000">
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
 
     <style>
-        :root {
-            --bg: #000000;
-            --primary: #1e847f;
-            --accent: #ecc19c;
-            --success: #2ecc71;
-        }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            margin: 0; padding: 0;
-            background-color: var(--bg); 
-            color: var(--accent);
-            overflow: hidden; 
-            height: 100dvh; 
-            display: flex; flex-direction: column; 
-        }
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10;
-            display: flex; flex-direction: column;
-            justify-content: space-between;
-            pointer-events: none;
-        }
-        #header {
-            padding: env(safe-area-inset-top) 20px 20px 20px;
-            text-align: center;
-            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
-            pointer-events: auto;
-        }
-        #counter { 
-            font-size: 7rem; font-weight: 900; 
-            color: var(--primary); line-height: 1;
-        }
-        #earned-time {
-            font-size: 1.2rem; color: #fff; font-weight: bold;
-            margin-top: 10px; padding: 8px 15px;
-            border: 2px solid var(--accent); border-radius: 12px;
-            display: inline-block; background: rgba(0,0,0,0.5);
-        }
-        #btn-valider {
-            background: var(--success); color: #fff;
-            border: none; padding: 18px 35px;
-            font-size: 1.4rem; font-weight: 900;
-            border-radius: 50px; margin-top: 20px;
-            display: none; /* Apparaît après 2 pompes */
-            box-shadow: 0 0 25px rgba(46, 204, 113, 0.6);
-            cursor: pointer; pointer-events: auto;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        #footer {
-            padding: 20px 20px calc(env(safe-area-inset-bottom) + 10px) 20px;
-            text-align: center;
-            background: var(--primary);
-            color: #fff; font-weight: 800; font-size: 1.1rem;
-            text-transform: uppercase; letter-spacing: 1px;
-        }
+        :root { --bg: #000; --primary: #1e847f; --accent: #ecc19c; --success: #2ecc71; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: var(--accent); overflow: hidden; height: 100dvh; display: flex; flex-direction: column; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+        #header { padding: env(safe-area-inset-top) 20px 20px 20px; text-align: center; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: auto; }
+        #counter { font-size: 7rem; font-weight: 900; color: var(--primary); line-height: 1; }
+        #earned-time { font-size: 1.2rem; color: #fff; font-weight: bold; margin-top: 10px; padding: 8px 15px; border: 2px solid var(--accent); border-radius: 12px; display: inline-block; background: rgba(0,0,0,0.5); }
+        #btn-valider { background: var(--success); color: #fff; border: none; padding: 18px 35px; font-size: 1.4rem; font-weight: 900; border-radius: 50px; margin-top: 20px; display: none; box-shadow: 0 0 25px rgba(46, 204, 113, 0.6); cursor: pointer; pointer-events: auto; }
+        #footer { padding: 20px 20px calc(env(safe-area-inset-bottom) + 10px) 20px; text-align: center; background: var(--primary); color: #fff; font-weight: 800; font-size: 1.1rem; text-transform: uppercase; }
         .container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         video { display: none; }
         canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
@@ -91,7 +37,7 @@
             <div id="counter">0</div>
             <div id="earned-time">0 MIN GAGNÉE</div>
             <br>
-            <button id="btn-valider" onclick="envoyerTemps()">DÉBLOQUER MON TEMPS</button>
+            <button id="btn-valider" onclick="envoyerTemps()">RÉCUPÉRER LE TEMPS</button>
         </div>
         <div id="footer">INITIALISATION...</div>
     </div>
@@ -115,14 +61,10 @@
             return angle;
         }
 
-        // ENVOI VERS LE RACCOURCI IPHONE
         function envoyerTemps() {
             let minutes = Math.floor(count / 2);
             if(minutes > 0) {
-                // URL Scheme pour lancer le raccourci ValiderPompes avec le nombre en entrée
                 window.location.href = "shortcuts://run-shortcut?name=ValiderPompes&input=" + minutes;
-                
-                // Reset après l'envoi
                 setTimeout(() => {
                     count = 0;
                     counterUI.innerText = "0";
@@ -134,7 +76,7 @@
 
         function onResults(results) {
             if (!results.poseLandmarks) {
-                instruction.innerText = "PLACE-TOI DE PROFIL";
+                instruction.innerText = "PLACE-TOI BIEN DANS LE CADRE";
                 return;
             }
 
@@ -142,46 +84,47 @@
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            // Points clés (Épaule, Coude, Poignet)
+            // Points Bras Gauche
             const lS = results.poseLandmarks[11]; const lE = results.poseLandmarks[13]; const lW = results.poseLandmarks[15];
+            // Points Bras Droit
             const rS = results.poseLandmarks[12]; const rE = results.poseLandmarks[14]; const rW = results.poseLandmarks[16];
 
-            // On choisit le bras le plus visible
-            let s, e, w;
-            if ((lS.visibility + lE.visibility) > (rS.visibility + rE.visibility)) {
-                s = lS; e = lE; w = lW;
-            } else {
-                s = rS; e = rE; w = rW;
-            }
+            // On vérifie que les 2 bras sont visibles
+            const leftVisible = lS.visibility > 0.5 && lE.visibility > 0.5 && lW.visibility > 0.5;
+            const rightVisible = rS.visibility > 0.5 && rE.visibility > 0.5 && rW.visibility > 0.5;
 
-            if (s.visibility > 0.5 && e.visibility > 0.5) {
-                const angle = calculateAngle(s, e, w);
+            if (leftVisible && rightVisible) {
+                const angleL = calculateAngle(lS, lE, lW);
+                const angleR = calculateAngle(rS, rE, rW);
                 
-                // Dessin du bras actif
+                // Dessin des deux bras
                 drawConnectors(canvasCtx, results.poseLandmarks, [[11,13], [13,15], [12,14], [14,16]], {color: '#1e847f', lineWidth: 5});
-                drawLandmarks(canvasCtx, [s, e, w], {color: '#ecc19c', radius: 6});
+                drawLandmarks(canvasCtx, [lS, lE, lW, rS, rE, rW], {color: '#ecc19c', radius: 4});
 
-                // LOGIQUE DE COMPTAGE PAR ANGLE
-                if (angle < 95 && position === "up") {
+                // LOGIQUE SYMÉTRIQUE
+                // 1. Position BASSE : Les DEUX bras doivent être pliés (< 100°)
+                if (angleL < 100 && angleR < 100 && position === "up") {
                     position = "down";
                     instruction.style.background = "#ecc19c"; 
                     instruction.style.color = "#000";
                     instruction.innerText = "REMONTE !";
                 }
-                else if (angle > 155 && position === "down") {
+                // 2. Position HAUTE : Les DEUX bras doivent être tendus (> 150°)
+                else if (angleL > 150 && angleR > 150 && position === "down") {
                     position = "up";
                     count++;
                     counterUI.innerText = count;
-                    
                     let mins = Math.floor(count / 2);
                     timeUI.innerText = mins + " MIN GAGNÉE" + (mins > 1 ? "S" : "");
-                    
                     if (mins >= 1) btnValider.style.display = "inline-block";
-
+                    
                     instruction.style.background = "#1e847f"; 
                     instruction.style.color = "#fff";
-                    instruction.innerText = "DESCENDS !";
+                    instruction.innerText = "EXCELLENT ! DESCENDS.";
                 }
+            } else {
+                instruction.style.background = "#ff4d4d";
+                instruction.innerText = "JE DOIS VOIR TES DEUX BRAS";
             }
             canvasCtx.restore();
         }
@@ -194,7 +137,7 @@
             onFrame: async () => { await pose.send({image: videoElement}); },
             width: 480, height: 640
         });
-        camera.start().then(() => { instruction.innerText = "PRÊT ! EN POSITION."; });
+        camera.start();
     </script>
 </body>
 </html>
