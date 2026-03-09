@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pump Master AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #121212; color: white; }
+        canvas { position: absolute; left: 0; top: 0; z-index: 1; }
+        video { width: 100%; max-width: 500px; border-radius: 10px; }
+        #counter { font-size: 5rem; font-weight: bold; color: #00ff00; }
+        .container { position: relative; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>PUMP OR BLOCK</h1>
+    <div id="counter">0</div>
+    <div class="container">
+        <video id="video" playsinline></video>
+        <canvas id="output"></canvas>
+    </div>
+    <p id="status">Chargement de l'IA...</p>
+
+    <script>
+        let count = 0;
+        let position = "up"; // "up" ou "down"
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise((resolve) => { video.onloadedmetadata = () => resolve(video); });
+        }
+
+        async function main() {
+            const net = await posenet.load();
+            document.getElementById('status').innerText = "IA prête ! Mets-toi en place.";
+            await setupCamera();
+            video.play();
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            detectPose(net);
+        }
+
+        async function detectPose(net) {
+            const pose = await net.estimateSinglePose(video);
+            
+            // Logique de détection simplifiée (basée sur l'épaule droite)
+            const shoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
+            
+            if (shoulder && shoulder.score > 0.5) {
+                const y = shoulder.position.y;
+                
+                // Si l'épaule descend sous un certain seuil (à ajuster selon ta distance)
+                if (y > 300 && position === "up") {
+                    position = "down";
+                } 
+                // Si elle remonte
+                else if (y < 200 && position === "down") {
+                    position = "up";
+                    count++;
+                    document.getElementById('counter').innerText = count;
+                    checkGoal();
+                }
+            }
+            requestAnimationFrame(() => detectPose(net));
+        }
+
+        function checkGoal() {
+            if (count >= 10) { // Objectif : 10 pompes
+                alert("BRAVO ! Accès débloqué.");
+                // Ici on enregistrera la preuve de réussite
+                localStorage.setItem('pompes_faites', Date.now());
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>
