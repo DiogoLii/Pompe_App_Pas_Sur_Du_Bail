@@ -1,28 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PUSH-UP OR SHUT-UP : ANTI-TRICHE</title>
+    <title>SKELETON DEBUG - PUMP</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #000000; color: #ecc19c; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-        #counter { font-size: 6rem; font-weight: bold; color: #1e847f; margin: 0; }
-        #debug-text { font-size: 0.8rem; background: #222; padding: 5px; min-height: 40px; }
+        body { font-family: 'Courier New', monospace; text-align: center; background: #000000; color: #ecc19c; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        #counter { font-size: 8rem; font-weight: 900; color: #1e847f; margin: 0; }
+        #instruction { font-size: 1.2rem; color: #fff; background: #1e847f; padding: 10px; font-weight: bold; text-transform: uppercase; }
+        #debug-text { font-size: 0.7rem; color: #888; padding: 5px; }
         .container { position: relative; width: 100vw; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
         video, canvas { position: absolute; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
         canvas { z-index: 2; }
     </style>
 </head>
 <body>
-    <h1>MODE SQUELETTE COMPLET</h1>
+    <div id="instruction">Initialisation...</div>
     <div id="counter">0</div>
-    <div id="debug-text">Initialisation...</div>
     
     <div class="container">
         <video id="video" playsinline></video>
         <canvas id="output"></canvas>
     </div>
+    <div id="debug-text">Points détectés : 0</div>
 
     <script>
         let count = 0;
@@ -43,51 +44,63 @@
             };
         }
 
-        function drawPoint(y, x, r, color) {
-            ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill();
+        function drawSegment(p1, p2, color) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.stroke();
         }
 
         async function detectPose(net) {
             const pose = await net.estimateSinglePose(video);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const shoulderL = pose.keypoints.find(k => k.part === 'leftShoulder');
-            const shoulderR = pose.keypoints.find(k => k.part === 'rightShoulder');
-            const wristL = pose.keypoints.find(k => k.part === 'leftWrist');
-            const wristR = pose.keypoints.find(k => k.part === 'rightWrist');
+            const parts = {};
+            pose.keypoints.forEach(k => { if(k.score > 0.5) parts[k.part] = k.position; });
 
-            // Dessiner les points détectés pour debug
-            [shoulderL, shoulderR, wristL, wristR].forEach(p => {
-                if (p && p.score > 0.5) drawPoint(p.position.y, p.position.x, 8, "#1e847f");
-            });
+            // DESSIN DU SQUELETTE (Tronc et bras)
+            if (parts.leftShoulder && parts.rightShoulder) {
+                drawSegment(parts.leftShoulder, parts.rightShoulder, "#ecc19c"); // Ligne épaules
+                if (parts.leftElbow) drawSegment(parts.leftShoulder, parts.leftElbow, "#1e847f");
+                if (parts.leftElbow && parts.leftWrist) drawSegment(parts.leftElbow, parts.leftWrist, "#1e847f");
+                if (parts.rightElbow) drawSegment(parts.rightShoulder, parts.rightElbow, "#1e847f");
+                if (parts.rightElbow && parts.rightWrist) drawSegment(parts.rightElbow, parts.rightWrist, "#1e847f");
+            }
 
-            if (shoulderL && shoulderR && shoulderL.score > 0.5 && shoulderR.score > 0.5) {
-                // On calcule la moyenne de hauteur des épaules
-                const avgShoulderY = (shoulderL.position.y + shoulderR.position.y) / 2;
-                
-                // On définit le "sol" par rapport au bas de l'image (75% de la hauteur)
-                const solVirtuel = canvas.height * 0.75;
-                const positionHaute = canvas.height * 0.45;
+            // SEUILS DE DÉTECTION
+            const seuilBas = canvas.height * 0.70; // Ligne rouge
+            const seuilHaut = canvas.height * 0.45; // Ligne verte
 
-                // Dessiner les lignes de seuil
-                ctx.beginPath(); ctx.moveTo(0, solVirtuel); ctx.lineTo(canvas.width, solVirtuel); ctx.strokeStyle = "red"; ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, positionHaute); ctx.lineTo(canvas.width, positionHaute); ctx.strokeStyle = "green"; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, seuilBas); ctx.lineTo(canvas.width, seuilBas); ctx.strokeStyle = "red"; ctx.lineWidth=2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(0, seuilHaut); ctx.lineTo(canvas.width, seuilHaut); ctx.strokeStyle = "green"; ctx.lineWidth=2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
 
-                document.getElementById('debug-text').innerText = `Hauteur Épaules : ${Math.round(avgShoulderY)} | Objectif Bas : ${Math.round(solVirtuel)}`;
+            if (parts.leftShoulder && parts.rightShoulder) {
+                const avgY = (parts.leftShoulder.y + parts.rightShoulder.y) / 2;
+                document.getElementById('debug-text').innerText = `Hauteur Épaules : ${Math.round(avgY)} | Cible : ${Math.round(seuilBas)}`;
 
-                // LOGIQUE : Les épaules doivent descendre vers le sol virtuel
-                if (avgShoulderY > solVirtuel && position === "up") {
-                    position = "down";
-                    document.body.style.background = "#1e847f";
-                } 
-                else if (avgShoulderY < positionHaute && position === "down") {
-                    position = "up";
-                    count++;
-                    document.getElementById('counter').innerText = count;
-                    document.body.style.background = "#000000";
+                if (position === "up") {
+                    document.getElementById('instruction').innerText = "Descendez vers la ligne rouge";
+                    document.getElementById('instruction').style.background = "#1e847f";
+                    if (avgY > seuilBas) {
+                        position = "down";
+                        document.body.style.background = "#1e847f";
+                    }
+                } else {
+                    document.getElementById('instruction').innerText = "Remontez vers la ligne verte";
+                    document.getElementById('instruction').style.background = "#ecc19c";
+                    document.getElementById('instruction').style.color = "#000";
+                    if (avgY < seuilHaut) {
+                        position = "up";
+                        count++;
+                        document.getElementById('counter').innerText = count;
+                        document.body.style.background = "#000000";
+                        document.getElementById('instruction').style.color = "#ecc19c";
+                    }
                 }
             } else {
-                document.getElementById('debug-text').innerText = "Place tes deux épaules face à la caméra !";
+                document.getElementById('instruction').innerText = "Reculez : je dois voir vos épaules";
             }
             requestAnimationFrame(() => detectPose(net));
         }
