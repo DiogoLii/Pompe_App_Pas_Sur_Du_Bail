@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>PUMP OR BLOCK - SYMMETRY MODE</title>
+    <title>PUMP OR BLOCK - ADAPTIVE MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,17 +12,116 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
 
     <style>
-        :root { --bg: #000; --primary: #1e847f; --accent: #ecc19c; --success: #2ecc71; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: var(--accent); overflow: hidden; height: 100dvh; display: flex; flex-direction: column; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
-        #header { padding: env(safe-area-inset-top) 20px 20px 20px; text-align: center; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: auto; }
-        #counter { font-size: 7rem; font-weight: 900; color: var(--primary); line-height: 1; }
-        #earned-time { font-size: 1.2rem; color: #fff; font-weight: bold; margin-top: 10px; padding: 8px 15px; border: 2px solid var(--accent); border-radius: 12px; display: inline-block; background: rgba(0,0,0,0.5); }
-        #btn-valider { background: var(--success); color: #fff; border: none; padding: 18px 35px; font-size: 1.4rem; font-weight: 900; border-radius: 50px; margin-top: 20px; display: none; box-shadow: 0 0 25px rgba(46, 204, 113, 0.6); cursor: pointer; pointer-events: auto; }
-        #footer { padding: 20px 20px calc(env(safe-area-inset-bottom) + 10px) 20px; text-align: center; background: var(--primary); color: #fff; font-weight: 800; font-size: 1.1rem; text-transform: uppercase; }
-        .container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        :root { 
+            --bg: #000; 
+            --primary: #1e847f; 
+            --accent: #ecc19c; 
+            --success: #2ecc71; 
+            --error: #ff4d4d;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--accent); 
+            overflow: hidden; 
+            height: 100dvh; 
+            display: flex; 
+            flex-direction: column; 
+        }
+
+        .container { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 1; 
+        }
+
         video { display: none; }
-        canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+        canvas { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; /* Remplit l'écran sans déformer */
+            transform: scaleX(-1); /* Effet miroir */
+        }
+
+        #ui-layer { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 10; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            pointer-events: none; 
+        }
+
+        #header { 
+            padding: env(safe-area-inset-top) 20px 20px 20px; 
+            text-align: center; 
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); 
+            pointer-events: auto; 
+        }
+
+        #counter { 
+            font-size: 8rem; 
+            font-weight: 900; 
+            color: var(--primary); 
+            line-height: 1; 
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        #earned-time { 
+            font-size: 1.2rem; 
+            color: #fff; 
+            font-weight: bold; 
+            margin-top: 10px; 
+            padding: 8px 18px; 
+            border: 2px solid var(--accent); 
+            border-radius: 12px; 
+            display: inline-block; 
+            background: rgba(0,0,0,0.6); 
+            backdrop-filter: blur(5px);
+        }
+
+        #btn-valider { 
+            background: var(--success); 
+            color: #fff; 
+            border: none; 
+            padding: 20px 40px; 
+            font-size: 1.5rem; 
+            font-weight: 900; 
+            border-radius: 50px; 
+            margin-top: 20px; 
+            display: none; 
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.5); 
+            cursor: pointer; 
+            pointer-events: auto; 
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        #footer { 
+            padding: 20px 20px calc(env(safe-area-inset-bottom) + 15px) 20px; 
+            text-align: center; 
+            background: var(--primary); 
+            color: #fff; 
+            font-weight: 800; 
+            font-size: 1.2rem; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
@@ -54,6 +153,7 @@
         let count = 0;
         let position = "up"; 
 
+        // Calcul d'angle précis
         function calculateAngle(a, b, c) {
             let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
@@ -61,6 +161,7 @@
             return angle;
         }
 
+        // Envoi vers le raccourci iPhone
         function envoyerTemps() {
             let minutes = Math.floor(count / 2);
             if(minutes > 0) {
@@ -75,70 +176,85 @@
         }
 
         function onResults(results) {
-            if (!results.poseLandmarks) {
-                instruction.innerText = "PLACE-TOI BIEN DANS LE CADRE";
-                return;
+            // Ajustement dynamique de la résolution du canvas
+            if (canvasElement.width !== results.image.width) {
+                canvasElement.width = results.image.width;
+                canvasElement.height = results.image.height;
             }
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            // Points Bras Gauche
+            if (!results.poseLandmarks) {
+                instruction.innerText = "PLACE TON CORPS DANS LE CADRE";
+                canvasCtx.restore();
+                return;
+            }
+
+            // Repères essentiels (épaules, coudes, poignets)
             const lS = results.poseLandmarks[11]; const lE = results.poseLandmarks[13]; const lW = results.poseLandmarks[15];
-            // Points Bras Droit
             const rS = results.poseLandmarks[12]; const rE = results.poseLandmarks[14]; const rW = results.poseLandmarks[16];
 
-            // On vérifie que les 2 bras sont visibles
-            const leftVisible = lS.visibility > 0.5 && lE.visibility > 0.5 && lW.visibility > 0.5;
-            const rightVisible = rS.visibility > 0.5 && rE.visibility > 0.5 && rW.visibility > 0.5;
+            // Visibilité minimale requise
+            const visibilityThreshold = 0.5;
+            const leftVisible = lS.visibility > visibilityThreshold && lE.visibility > visibilityThreshold && lW.visibility > visibilityThreshold;
+            const rightVisible = rS.visibility > visibilityThreshold && rE.visibility > visibilityThreshold && rW.visibility > visibilityThreshold;
 
             if (leftVisible && rightVisible) {
                 const angleL = calculateAngle(lS, lE, lW);
                 const angleR = calculateAngle(rS, rE, rW);
                 
-                // Dessin des deux bras
-                drawConnectors(canvasCtx, results.poseLandmarks, [[11,13], [13,15], [12,14], [14,16]], {color: '#1e847f', lineWidth: 5});
-                drawLandmarks(canvasCtx, [lS, lE, lW, rS, rE, rW], {color: '#ecc19c', radius: 4});
+                // Dessin adaptatif selon la résolution
+                const lineSize = Math.max(4, Math.round(canvasElement.width / 120));
+                drawConnectors(canvasCtx, results.poseLandmarks, [[11,13], [13,15], [12,14], [14,16]], {color: '#1e847f', lineWidth: lineSize});
+                drawLandmarks(canvasCtx, [lE, rE], {color: '#ecc19c', radius: lineSize / 1.5});
 
-                // LOGIQUE SYMÉTRIQUE
-                // 1. Position BASSE : Les DEUX bras doivent être pliés (< 100°)
+                // Logique de comptage symétrique
                 if (angleL < 100 && angleR < 100 && position === "up") {
                     position = "down";
-                    instruction.style.background = "#ecc19c"; 
+                    instruction.style.background = "var(--accent)"; 
                     instruction.style.color = "#000";
                     instruction.innerText = "REMONTE !";
                 }
-                // 2. Position HAUTE : Les DEUX bras doivent être tendus (> 150°)
-                else if (angleL > 150 && angleR > 150 && position === "down") {
+                else if (angleL > 155 && angleR > 155 && position === "down") {
                     position = "up";
                     count++;
                     counterUI.innerText = count;
                     let mins = Math.floor(count / 2);
                     timeUI.innerText = mins + " MIN GAGNÉE" + (mins > 1 ? "S" : "");
                     if (mins >= 1) btnValider.style.display = "inline-block";
-                    
-                    instruction.style.background = "#1e847f"; 
+                    instruction.style.background = "var(--primary)"; 
                     instruction.style.color = "#fff";
-                    instruction.innerText = "EXCELLENT ! DESCENDS.";
+                    instruction.innerText = "TOP ! DESCENDS ENCORE.";
                 }
             } else {
-                instruction.style.background = "#ff4d4d";
-                instruction.innerText = "JE DOIS VOIR TES DEUX BRAS";
+                instruction.style.background = "var(--error)";
+                instruction.innerText = "MONTRE TES DEUX COUDES";
             }
             canvasCtx.restore();
         }
 
         const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-        pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        
+        pose.setOptions({ 
+            modelComplexity: 1, // Équilibré pour tout appareil
+            smoothLandmarks: true, 
+            minDetectionConfidence: 0.5, 
+            minTrackingConfidence: 0.5 
+        });
         pose.onResults(onResults);
 
+        // Demande la résolution maximale possible sans forcer de valeur bloquante
         const camera = new Camera(videoElement, {
-            onFrame: async () => { await pose.send({image: videoElement}); },
-            width: 1080, height: 1920
+            onFrame: async () => {
+                await pose.send({image: videoElement});
+            },
+            width: { ideal: 4096 }, 
+            height: { ideal: 2160 },
+            facingMode: 'user'
         });
         camera.start();
     </script>
 </body>
 </html>
-
