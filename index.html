@@ -1,110 +1,103 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SKELETON DEBUG - PUMP</title>
+    <title>PUSH-UP OR SHUT-UP : MEDIAPIPE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+
     <style>
-        body { font-family: 'Courier New', monospace; text-align: center; background: #000000; color: #ecc19c; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-        #counter { font-size: 8rem; font-weight: 900; color: #1e847f; margin: 0; }
-        #instruction { font-size: 1.2rem; color: #fff; background: #1e847f; padding: 10px; font-weight: bold; text-transform: uppercase; }
-        #debug-text { font-size: 0.7rem; color: #888; padding: 5px; }
-        .container { position: relative; width: 100vw; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
-        video, canvas { position: absolute; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
-        canvas { z-index: 2; }
+        body { font-family: 'Courier New', monospace; text-align: center; background: #000; color: #ecc19c; margin: 0; overflow: hidden; }
+        #counter { font-size: 8rem; font-weight: 900; color: #1e847f; position: absolute; top: 10px; width: 100%; z-index: 10; pointer-events: none; }
+        #instruction { background: #1e847f; color: #fff; padding: 15px; font-weight: bold; position: absolute; bottom: 0; width: 100%; z-index: 10; }
+        .container { position: relative; width: 100vw; height: 100vh; background: #000; }
+        video { display: none; } /* On cache la vidéo brute */
+        canvas { width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
     </style>
 </head>
 <body>
-    <div id="instruction">Initialisation...</div>
     <div id="counter">0</div>
+    <div id="instruction">CHARGEMENT DE L'IA...</div>
     
     <div class="container">
-        <video id="video" playsinline></video>
-        <canvas id="output"></canvas>
+        <video id="input_video"></video>
+        <canvas id="output_canvas"></canvas>
     </div>
-    <div id="debug-text">Points détectés : 0</div>
 
     <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const instruction = document.getElementById('instruction');
+        
         let count = 0;
-        let position = "up"; 
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('output');
-        const ctx = canvas.getContext('2d');
+        let position = "up";
 
-        async function main() {
-            const net = await posenet.load();
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-            video.srcObject = stream;
-            video.play();
-            video.onloadedmetadata = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                detectPose(net);
-            };
-        }
-
-        function drawSegment(p1, p2, color) {
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 4;
-            ctx.stroke();
-        }
-
-        async function detectPose(net) {
-            const pose = await net.estimateSinglePose(video);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const parts = {};
-            pose.keypoints.forEach(k => { if(k.score > 0.5) parts[k.part] = k.position; });
-
-            // DESSIN DU SQUELETTE (Tronc et bras)
-            if (parts.leftShoulder && parts.rightShoulder) {
-                drawSegment(parts.leftShoulder, parts.rightShoulder, "#ecc19c"); // Ligne épaules
-                if (parts.leftElbow) drawSegment(parts.leftShoulder, parts.leftElbow, "#1e847f");
-                if (parts.leftElbow && parts.leftWrist) drawSegment(parts.leftElbow, parts.leftWrist, "#1e847f");
-                if (parts.rightElbow) drawSegment(parts.rightShoulder, parts.rightElbow, "#1e847f");
-                if (parts.rightElbow && parts.rightWrist) drawSegment(parts.rightElbow, parts.rightWrist, "#1e847f");
+        function onResults(results) {
+            if (!results.poseLandmarks) {
+                instruction.innerText = "PLACE-TOI DEVANT LA CAMÉRA";
+                return;
             }
 
-            // SEUILS DE DÉTECTION
-            const seuilBas = canvas.height * 0.70; // Ligne rouge
-            const seuilHaut = canvas.height * 0.45; // Ligne verte
+            // Dessin
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            ctx.beginPath(); ctx.moveTo(0, seuilBas); ctx.lineTo(canvas.width, seuilBas); ctx.strokeStyle = "red"; ctx.lineWidth=2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-            ctx.beginPath(); ctx.moveTo(0, seuilHaut); ctx.lineTo(canvas.width, seuilHaut); ctx.strokeStyle = "green"; ctx.lineWidth=2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+            // Dessiner le squelette MediaPipe
+            drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                {color: '#1e847f', lineWidth: 4});
+            drawLandmarks(canvasCtx, results.poseLandmarks,
+                {color: '#ecc19c', lineWidth: 2, radius: 5});
 
-            if (parts.leftShoulder && parts.rightShoulder) {
-                const avgY = (parts.leftShoulder.y + parts.rightShoulder.y) / 2;
-                document.getElementById('debug-text').innerText = `Hauteur Épaules : ${Math.round(avgY)} | Cible : ${Math.round(seuilBas)}`;
+            // Logique de pompe (Épaules : points 11 et 12)
+            const shoulderL = results.poseLandmarks[11];
+            const shoulderR = results.poseLandmarks[12];
+            const avgY = (shoulderL.y + shoulderR.y) / 2;
 
-                if (position === "up") {
-                    document.getElementById('instruction').innerText = "Descendez vers la ligne rouge";
-                    document.getElementById('instruction').style.background = "#1e847f";
-                    if (avgY > seuilBas) {
-                        position = "down";
-                        document.body.style.background = "#1e847f";
-                    }
-                } else {
-                    document.getElementById('instruction').innerText = "Remontez vers la ligne verte";
-                    document.getElementById('instruction').style.background = "#ecc19c";
-                    document.getElementById('instruction').style.color = "#000";
-                    if (avgY < seuilHaut) {
-                        position = "up";
-                        count++;
-                        document.getElementById('counter').innerText = count;
-                        document.body.style.background = "#000000";
-                        document.getElementById('instruction').style.color = "#ecc19c";
-                    }
+            // MediaPipe donne des valeurs entre 0 et 1 (0 = haut, 1 = bas)
+            const seuilBas = 0.75;  // 75% du bas de l'écran
+            const seuilHaut = 0.50; // 50% du haut de l'écran
+
+            if (position === "up") {
+                instruction.innerText = "DESCENDEZ";
+                if (avgY > seuilBas) {
+                    position = "down";
+                    document.body.style.background = "#1e847f";
                 }
             } else {
-                document.getElementById('instruction').innerText = "Reculez : je dois voir vos épaules";
+                instruction.innerText = "REMONTEZ";
+                if (avgY < seuilHaut) {
+                    position = "up";
+                    count++;
+                    document.getElementById('counter').innerText = count;
+                    document.body.style.background = "#000";
+                }
             }
-            requestAnimationFrame(() => detectPose(net));
+            canvasCtx.restore();
         }
-        main();
+
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        pose.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
     </script>
 </body>
 </html>
