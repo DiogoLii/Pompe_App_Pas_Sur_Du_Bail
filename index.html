@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>PUMP OR BLOCK - ADAPTIVE MODE</title>
+    <title>PUMP OR BLOCK - CREDITS MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,11 +17,10 @@
             --primary: #1e847f; 
             --accent: #ecc19c; 
             --success: #2ecc71; 
-            --error: #ff4d4d;
         }
 
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            font-family: -apple-system, sans-serif; 
             margin: 0; 
             background: var(--bg); 
             color: var(--accent); 
@@ -31,35 +30,25 @@
             flex-direction: column; 
         }
 
+        /* Caméra Plein Écran */
         .container { 
             position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
+            top: 0; left: 0; width: 100%; height: 100%; 
             z-index: 1; 
         }
 
         video { display: none; }
-
         canvas { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: cover; /* Remplit l'écran sans déformer */
-            transform: scaleX(-1); /* Effet miroir */
+            width: 100%; height: 100%; 
+            object-fit: cover; 
+            transform: scaleX(-1); 
         }
 
+        /* UI Overlays */
         #ui-layer { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 10; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: space-between; 
-            pointer-events: none; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; display: flex; flex-direction: column; 
+            justify-content: space-between; pointer-events: none; 
         }
 
         #header { 
@@ -69,58 +58,25 @@
             pointer-events: auto; 
         }
 
-        #counter { 
-            font-size: 8rem; 
-            font-weight: 900; 
-            color: var(--primary); 
-            line-height: 1; 
-            text-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
-
-        #earned-time { 
-            font-size: 1.2rem; 
-            color: #fff; 
-            font-weight: bold; 
-            margin-top: 10px; 
-            padding: 8px 18px; 
-            border: 2px solid var(--accent); 
-            border-radius: 12px; 
-            display: inline-block; 
-            background: rgba(0,0,0,0.6); 
-            backdrop-filter: blur(5px);
+        #counter { font-size: 8rem; font-weight: 900; color: var(--primary); line-height: 1; }
+        #earned-points { 
+            font-size: 1.2rem; color: #fff; font-weight: bold; 
+            padding: 8px 15px; border: 2px solid var(--accent); 
+            border-radius: 12px; display: inline-block; 
+            background: rgba(0,0,0,0.5); 
         }
 
         #btn-valider { 
-            background: var(--success); 
-            color: #fff; 
-            border: none; 
-            padding: 20px 40px; 
-            font-size: 1.5rem; 
-            font-weight: 900; 
-            border-radius: 50px; 
-            margin-top: 20px; 
-            display: none; 
-            box-shadow: 0 0 30px rgba(46, 204, 113, 0.5); 
-            cursor: pointer; 
-            pointer-events: auto; 
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            background: var(--success); color: #fff; border: none; 
+            padding: 20px 40px; font-size: 1.4rem; font-weight: 900; 
+            border-radius: 50px; margin-top: 20px; display: none; 
+            pointer-events: auto; box-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
         }
 
         #footer { 
             padding: 20px 20px calc(env(safe-area-inset-bottom) + 15px) 20px; 
-            text-align: center; 
-            background: var(--primary); 
-            color: #fff; 
-            font-weight: 800; 
-            font-size: 1.2rem; 
-            text-transform: uppercase; 
-            letter-spacing: 1px;
+            text-align: center; background: var(--primary); 
+            color: #fff; font-weight: 800; text-transform: uppercase; 
         }
     </style>
 </head>
@@ -134,11 +90,11 @@
     <div id="ui-layer">
         <div id="header">
             <div id="counter">0</div>
-            <div id="earned-time">0 MIN GAGNÉE</div>
+            <div id="earned-points">0 CRÉDITS</div>
             <br>
-            <button id="btn-valider" onclick="envoyerTemps()">RÉCUPÉRER LE TEMPS</button>
+            <button id="btn-valider" onclick="envoyerPoints()">ENCAISSER LES CRÉDITS</button>
         </div>
-        <div id="footer">INITIALISATION...</div>
+        <div id="footer">SCANNE EN COURS...</div>
     </div>
 
     <script>
@@ -147,13 +103,12 @@
         const canvasCtx = canvasElement.getContext('2d');
         const instruction = document.getElementById('footer');
         const counterUI = document.getElementById('counter');
-        const timeUI = document.getElementById('earned-time');
+        const pointsUI = document.getElementById('earned-points');
         const btnValider = document.getElementById('btn-valider');
         
         let count = 0;
         let position = "up"; 
 
-        // Calcul d'angle précis
         function calculateAngle(a, b, c) {
             let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
@@ -161,22 +116,24 @@
             return angle;
         }
 
-        // Envoi vers le raccourci iPhone
-        function envoyerTemps() {
-            let minutes = Math.floor(count / 2);
-            if(minutes > 0) {
-                window.location.href = "shortcuts://run-shortcut?name=ValiderPompes&input=" + minutes;
+        // ENVOI DU NOMBRE PUR AU RACCOURCI
+        function envoyerPoints() {
+            let points = Math.floor(count / 2); // 2 pompes = 1 crédit
+            if(points > 0) {
+                // On envoie juste le chiffre au raccourci
+                window.location.href = "shortcuts://run-shortcut?name=ValiderPompes&input=" + points;
+                
                 setTimeout(() => {
                     count = 0;
                     counterUI.innerText = "0";
-                    timeUI.innerText = "0 MIN GAGNÉE";
+                    pointsUI.innerText = "0 CRÉDITS";
                     btnValider.style.display = "none";
                 }, 1000);
             }
         }
 
         function onResults(results) {
-            // Ajustement dynamique de la résolution du canvas
+            // Adaptabilité HD
             if (canvasElement.width !== results.image.width) {
                 canvasElement.width = results.image.width;
                 canvasElement.height = results.image.height;
@@ -187,72 +144,50 @@
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
             if (!results.poseLandmarks) {
-                instruction.innerText = "PLACE TON CORPS DANS LE CADRE";
+                instruction.innerText = "PLACE-TOI DANS LE CADRE";
                 canvasCtx.restore();
                 return;
             }
 
-            // Repères essentiels (épaules, coudes, poignets)
             const lS = results.poseLandmarks[11]; const lE = results.poseLandmarks[13]; const lW = results.poseLandmarks[15];
             const rS = results.poseLandmarks[12]; const rE = results.poseLandmarks[14]; const rW = results.poseLandmarks[16];
 
-            // Visibilité minimale requise
-            const visibilityThreshold = 0.5;
-            const leftVisible = lS.visibility > visibilityThreshold && lE.visibility > visibilityThreshold && lW.visibility > visibilityThreshold;
-            const rightVisible = rS.visibility > visibilityThreshold && rE.visibility > visibilityThreshold && rW.visibility > visibilityThreshold;
+            const visible = lE.visibility > 0.5 && rE.visibility > 0.5;
 
-            if (leftVisible && rightVisible) {
+            if (visible) {
                 const angleL = calculateAngle(lS, lE, lW);
                 const angleR = calculateAngle(rS, rE, rW);
                 
-                // Dessin adaptatif selon la résolution
                 const lineSize = Math.max(4, Math.round(canvasElement.width / 120));
                 drawConnectors(canvasCtx, results.poseLandmarks, [[11,13], [13,15], [12,14], [14,16]], {color: '#1e847f', lineWidth: lineSize});
-                drawLandmarks(canvasCtx, [lE, rE], {color: '#ecc19c', radius: lineSize / 1.5});
 
-                // Logique de comptage symétrique
                 if (angleL < 100 && angleR < 100 && position === "up") {
                     position = "down";
-                    instruction.style.background = "var(--accent)"; 
-                    instruction.style.color = "#000";
                     instruction.innerText = "REMONTE !";
                 }
                 else if (angleL > 155 && angleR > 155 && position === "down") {
                     position = "up";
                     count++;
                     counterUI.innerText = count;
-                    let mins = Math.floor(count / 2);
-                    timeUI.innerText = mins + " MIN GAGNÉE" + (mins > 1 ? "S" : "");
-                    if (mins >= 1) btnValider.style.display = "inline-block";
-                    instruction.style.background = "var(--primary)"; 
-                    instruction.style.color = "#fff";
-                    instruction.innerText = "TOP ! DESCENDS ENCORE.";
+                    let pts = Math.floor(count / 2);
+                    pointsUI.innerText = pts + " CRÉDIT" + (pts > 1 ? "S" : "");
+                    if (pts >= 1) btnValider.style.display = "inline-block";
+                    instruction.innerText = "PARFAIT !";
                 }
             } else {
-                instruction.style.background = "var(--error)";
-                instruction.innerText = "MONTRE TES DEUX COUDES";
+                instruction.innerText = "COUDES NON VISIBLES";
             }
             canvasCtx.restore();
         }
 
         const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-        
-        pose.setOptions({ 
-            modelComplexity: 1, // Équilibré pour tout appareil
-            smoothLandmarks: true, 
-            minDetectionConfidence: 0.5, 
-            minTrackingConfidence: 0.5 
-        });
+        pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
         pose.onResults(onResults);
 
-        // Demande la résolution maximale possible sans forcer de valeur bloquante
         const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await pose.send({image: videoElement});
-            },
-            width: { ideal: 4096 }, 
-            height: { ideal: 2160 },
-            facingMode: 'user'
+            onFrame: async () => { await pose.send({image: videoElement}); },
+            width: { ideal: 1920 }, height: { ideal: 1080 },
+            facingMode: "user"
         });
         camera.start();
     </script>
