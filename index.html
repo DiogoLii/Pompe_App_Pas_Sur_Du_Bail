@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pompe pour voir ;)</title>
+    <title>PUSH-UP OR SHUT-UP</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
@@ -9,84 +9,138 @@
         body { 
             font-family: 'Segoe UI', sans-serif; 
             text-align: center; 
-            background: #000000; /* Ton fond noir */
-            color: #ecc19c; /* Ta couleur chair/sable */
+            background: #000000; 
+            color: #ecc19c; 
             margin: 0;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
+        h1 { margin: 10px 0 0 0; font-size: 1.2rem; }
         #counter { 
-            font-size: 8rem; 
+            font-size: 6rem; 
             font-weight: bold; 
-            color: #1e847f; /* Ta couleur bleu/vert */
+            color: #1e847f; 
             text-shadow: 0 0 20px rgba(30, 132, 127, 0.5);
+            margin: 0;
         }
-        .container { position: relative; width: 100vw; height: 60vh; }
-        video { 
+        #debug-text { font-size: 0.9rem; margin-bottom: 5px; color: #fff; }
+        .container { 
+            position: relative; 
+            width: 100vw; 
+            flex-grow: 1; /* Prend l'espace restant */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        video, canvas { 
+            position: absolute;
             width: 100%; 
             height: 100%; 
-            object-fit: cover; 
-            transform: scaleX(-1); /* EFFET MIROIR ICI */
-            border-bottom: 4px solid #1e847f;
+            object-fit: contain; /* ESSENTIEL : Ne coupe plus la vidéo */
+            transform: scaleX(-1); /* Effet miroir */
         }
-        canvas { display: none; } /* On cache le squelette pour que ce soit plus beau */
-        .btn {
-            background: #1e847f;
-            color: white;
-            padding: 15px 30px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            display: inline-block;
-            margin-top: 20px;
+        canvas { 
+            z-index: 2; 
+            pointer-events: none;
         }
+        #status { color: #1e847f; font-weight: bold; padding: 10px; }
     </style>
 </head>
 <body>
-    <h1 style="margin-top:20px;">PUMP TO UNLOCK</h1>
+    <h1>DEBUG MODE : LIGNES ACTIVES</h1>
     <div id="counter">0</div>
+    <div id="debug-text">Nez Y : -- | Attente...</div>
+    
     <div class="container">
         <video id="video" playsinline></video>
+        <canvas id="output"></canvas>
     </div>
-    <p id="status" style="color: #1e847f;">Initialisation de l'IA...</p>
+    
+    <p id="status">Initialisation de l'IA...</p>
 
     <script>
         let count = 0;
         let position = "up"; 
         const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
 
         async function setupCamera() {
-            // On force l'utilisation de la caméra frontale ("user")
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: "user" } 
             });
             video.srcObject = stream;
-            return new Promise((resolve) => { video.onloadedmetadata = () => resolve(video); });
+            return new Promise((resolve) => { 
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    resolve(video); 
+                }; 
+            });
         }
 
         async function main() {
             const net = await posenet.load();
-            document.getElementById('status').innerText = "IA ACTIVE - FAIS TES POMPES";
+            document.getElementById('status').innerText = "SCANNER PRÊT";
             await setupCamera();
             video.play();
             detectPose(net);
         }
 
+        function drawPoint(y, x, r, color) {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function drawLine(y, color) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
         async function detectPose(net) {
             const pose = await net.estimateSinglePose(video);
-            
-            // On détecte le nez pour voir si ton visage descend et remonte
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Dessiner le squelette
+            pose.keypoints.forEach(point => {
+                if (point.score > 0.5) {
+                    drawPoint(point.position.y, point.position.x, 5, "#1e847f");
+                }
+            });
+
+            // Définition des seuils dynamiques (adaptés à la caméra)
+            const seuilBas = canvas.height * 0.70; // La ligne rouge est à 70% en bas de l'écran
+            const seuilHaut = canvas.height * 0.40; // La ligne verte est à 40% en haut de l'écran
+
+            // Affichage visuel des lignes
+            drawLine(seuilBas, "red");   // Il faut descendre sous cette ligne
+            drawLine(seuilHaut, "green"); // Il faut remonter au-dessus de cette ligne
+
             const nose = pose.keypoints.find(k => k.part === 'nose');
             
             if (nose && nose.score > 0.6) {
                 const y = nose.position.y;
-                
-                // AJUSTEMENT DES SEUILS :
-                // Plus le chiffre est grand, plus le nez est BAS sur l'écran.
-                if (y > 350 && position === "up") {
+                drawPoint(y, nose.position.x, 10, "#ecc19c");
+
+                // Met à jour le texte pour t'aider à comprendre
+                document.getElementById('debug-text').innerText = `Nez Y : ${Math.round(y)} | Ligne Rouge : ${Math.round(seuilBas)} | Ligne Verte : ${Math.round(seuilHaut)}`;
+
+                // LOGIQUE DE COMPTAGE CORRIGÉE
+                // On descend la tête (Y augmente vers le bas de l'écran)
+                if (y > seuilBas && position === "up") {
                     position = "down";
-                    document.body.style.background = "#1e847f"; // Flash couleur quand tu es en bas
+                    document.body.style.background = "#1e847f"; 
                 } 
-                else if (y < 200 && position === "down") {
+                // On remonte la tête (Y diminue vers le haut de l'écran)
+                else if (y < seuilHaut && position === "down") {
                     position = "up";
                     count++;
                     document.getElementById('counter').innerText = count;
@@ -94,13 +148,13 @@
                     checkGoal();
                 }
             }
+            
             requestAnimationFrame(() => detectPose(net));
         }
 
         function checkGoal() {
-            if (count >= 5) { // Test avec 5 pompes pour commencer
+            if (count >= 5) {
                 alert("SESSION VALIDÉE !");
-                // On enregistre l'heure de fin pour Raccourcis
                 localStorage.setItem('last_workout', Date.now());
             }
         }
